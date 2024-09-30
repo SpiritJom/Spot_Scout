@@ -44,6 +44,8 @@ import { MatIconModule } from '@angular/material/icon';
   styleUrls: ['./dashboard.component.css'],
 })
 export class DashboardComponent implements AfterViewInit, OnInit, OnDestroy {
+  currentMapName: string | null = null;
+  currentMapId: number | null = null;
   searchControl = new FormControl();
   filteredOptions!: Observable<string[]>;
   amenities: string[] = [
@@ -883,9 +885,11 @@ export class DashboardComponent implements AfterViewInit, OnInit, OnDestroy {
           if (this.isOutputRemoved(loadingOutput)) return;
           loadingOutput.loading = false;
           Object.assign(loadingOutput, {
-            subdistrict: response.subdistrict_th || 'ไม่ทราบ', // ใช้ "ไม่ทราบ" หากไม่พบข้อมูล
-            district: response.district_th || 'ไม่ทราบ', // ใช้ "ไม่ทราบ" หากไม่พบข้อมูล
-            business_count: response.business_count !== undefined ? response.business_count : -1, // ใช้ -1 หากไม่พบข้อมูล business_count
+            subdistrict: response.subdistrict_th || 'ไม่ทราบ',
+            district: response.district_th || 'ไม่ทราบ',
+            business_count: response.business_count !== undefined ? response.business_count : -1,
+            average_income: response.average_income !== undefined ? response.average_income : 'ไม่ทราบ',
+            closed_business_count: response.closed_business_count !== undefined ? response.closed_business_count : 0,
           });
         },
         error: (error) => {
@@ -893,9 +897,11 @@ export class DashboardComponent implements AfterViewInit, OnInit, OnDestroy {
           if (error.status === 404) {
             loadingOutput.loading = false;
             Object.assign(loadingOutput, {
-              subdistrict: 'ไม่ทราบ',  // ถ้าเกิด 404 ให้แสดงว่า "ไม่ทราบ"
-              district: 'ไม่ทราบ',    // ถ้าเกิด 404 ให้แสดงว่า "ไม่ทราบ"
-              business_count: 0,      // ถ้าเกิด 404 ให้แสดงว่า -1
+              subdistrict: 'ไม่ทราบ',
+              district: 'ไม่ทราบ',
+              business_count: 0,
+              average_income: 'ไม่ทราบ',
+              closed_business_count: 0,
             });
           }
         },
@@ -1046,7 +1052,7 @@ export class DashboardComponent implements AfterViewInit, OnInit, OnDestroy {
         drawnLayers.push(geoJson);
       }
     });
-
+  
     const combinedOutputs = [...this.outputs].map((output) => {
       const serializedOutput = { ...output };
       if (output.polyline) {
@@ -1070,25 +1076,132 @@ export class DashboardComponent implements AfterViewInit, OnInit, OnDestroy {
       delete serializedOutput.redMarker;
       return serializedOutput;
     });
-
+  
     const mapData = {
       drawnItems: drawnLayers,
       outputs: combinedOutputs,
     };
-
-    const mapName = prompt('Enter a name for the map:');
-    if (mapName) {
-      this.apiService.saveUserMap({ name: mapName, data: mapData }).subscribe({
-        next: (response) => {
-          console.log('Map saved successfully', response);
-        },
-        error: (error) => console.error('Error saving map:', error),
+  
+    if (this.currentMapName) {
+      Swal.fire({
+        title: 'Save Map',
+        text: 'Do you want to save changes to this map?',
+        icon: 'question',
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: 'Save',
+        denyButtonText: 'Save New',
+      }).then((result) => {
+        if (result.isConfirmed) {
+          this.apiService.saveUserMap({ name: this.currentMapName, data: mapData }).subscribe({
+            next: (response) => {
+              console.log('Map saved successfully', response);
+            },
+            error: (error) => console.error('Error saving map:', error),
+          });
+        } else if (result.isDenied) {
+          Swal.fire({
+            title: 'Enter a name for the map:',
+            input: 'text',
+            inputPlaceholder: 'Map name',
+            showCancelButton: true,
+          }).then((nameResult) => {
+            if (nameResult.value) {
+              const mapName = nameResult.value;
+  
+              this.apiService.getUserMaps().subscribe({
+                next: (maps) => {
+                  const existingMap = maps.find((map: any) => map.name === mapName);
+                  if (existingMap) {
+                    Swal.fire({
+                      title: 'Map name already exists',
+                      text: 'Do you want to overwrite the existing map?',
+                      icon: 'warning',
+                      showCancelButton: true,
+                      confirmButtonText: 'Overwrite',
+                      cancelButtonText: 'Cancel',
+                    }).then((overwriteResult) => {
+                      if (overwriteResult.isConfirmed) {
+                        this.apiService.saveUserMap({ name: mapName, data: mapData }).subscribe({
+                          next: (response) => {
+                            console.log('Map saved successfully', response);
+                            this.currentMapName = mapName;
+                          },
+                          error: (error) => console.error('Error saving map:', error),
+                        });
+                      }
+                    });
+                  } else {
+                    this.apiService.saveUserMap({ name: mapName, data: mapData }).subscribe({
+                      next: (response) => {
+                        console.log('Map saved successfully', response);
+                        this.currentMapName = mapName;
+                      },
+                      error: (error) => console.error('Error saving map:', error),
+                    });
+                  }
+                },
+                error: (error) => console.error('Error fetching maps:', error),
+              });
+            }
+          });
+        }
+      });
+    } else {
+      Swal.fire({
+        title: 'Enter a name for the map:',
+        input: 'text',
+        inputPlaceholder: 'Map name',
+        showCancelButton: true,
+      }).then((nameResult) => {
+        if (nameResult.value) {
+          const mapName = nameResult.value;
+  
+          this.apiService.getUserMaps().subscribe({
+            next: (maps) => {
+              const existingMap = maps.find((map: any) => map.name === mapName);
+              if (existingMap) {
+                Swal.fire({
+                  title: 'Map name already exists',
+                  text: 'Do you want to overwrite the existing map?',
+                  icon: 'warning',
+                  showCancelButton: true,
+                  confirmButtonText: 'Overwrite',
+                  cancelButtonText: 'Cancel',
+                }).then((overwriteResult) => {
+                  if (overwriteResult.isConfirmed) {
+                    this.apiService.saveUserMap({ name: mapName, data: mapData }).subscribe({
+                      next: (response) => {
+                        console.log('Map saved successfully', response);
+                        this.currentMapName = mapName;
+                      },
+                      error: (error) => console.error('Error saving map:', error),
+                    });
+                  }
+                });
+              } else {
+                this.apiService.saveUserMap({ name: mapName, data: mapData }).subscribe({
+                  next: (response) => {
+                    console.log('Map saved successfully', response);
+                    this.currentMapName = mapName;
+                  },
+                  error: (error) => console.error('Error saving map:', error),
+                });
+              }
+            },
+            error: (error) => console.error('Error fetching maps:', error),
+          });
+        }
       });
     }
   }
+  
+  
 
   loadMap(map: any) {
     console.log('Loading map data:', map);
+    this.currentMapId = map.id;
+    this.currentMapName = map.name;
     this.clearOutputsAndOverlays();
 
     map.data.drawnItems.forEach((geoJson: any) => {
