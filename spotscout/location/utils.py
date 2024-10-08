@@ -8,7 +8,7 @@ import geopandas as gpd
 import os
 from shapely.geometry import Point 
 from geopy.distance import geodesic
-from .models import Location, BusinessOwnerCount, LocationCategory
+from .models import Location, BusinessOwnerCount
 from sklearn.neighbors import KDTree
 import csv
 
@@ -91,159 +91,123 @@ def get_population(lat, lon, distance):
         print(f"Error processing point ({lat}, {lon}): {e}")
         return 0
 
-rf_classifier = joblib.load('../spotscout/location/spot_scout_model/random_forest_model.pkl')
-label_encoder = joblib.load('../spotscout/location/spot_scout_model/label_encoder.pkl')
+current_directory = os.path.dirname(os.path.abspath(__file__))
 
+# Set the correct paths for the model and label encoder
+model_path = os.path.join(current_directory, 'spot_scout_model', 'trained_model_100_v.2.pkl')
+encoder_path = os.path.join(current_directory, 'spot_scout_model', 'label_encoder_100_v.2.pkl')
+
+# Load the trained model and label encoder
+rf_classifier = joblib.load(model_path)
+label_encoder = joblib.load(encoder_path)
+# Ensure this matches the 
 feature_order = [
     'lat', 'lon', 'province', 'distance_nearest_bank', 'distance_nearest_fuel', 
-    'distance_nearest_office', 'distance_nearest_police', 'distance_nearest_townhall',
-    'distance_nearest_bus_station', 'distance_nearest_bus_stop', 'distance_nearest_convenience',
-    'distance_nearest_mall', 'distance_nearest_supermarket', 'distance_nearest_books',
-    'distance_nearest_coffee', 'distance_nearest_department_store', 'distance_nearest_clothes',
-    'distance_nearest_bakery', 'distance_nearest_cafe', 'count_bank_within_500m',
-    'count_fuel_within_500m', 'count_office_within_500m', 'count_police_within_500m',
-    'count_townhall_within_500m', 'count_bus_station_within_500m', 'count_bus_stop_within_500m',
-    'count_convenience_within_500m', 'count_mall_within_500m', 'count_supermarket_within_500m',
-    'count_books_within_500m', 'count_coffee_within_500m', 'count_department_store_within_500m',
-    'count_clothes_within_500m', 'count_bakery_within_500m', 'count_cafe_within_500m',
-    'count_viewpoint_within_500m', 'count_attraction_within_500m', 'count_camp_site_within_500m',
-    'count_guest_house_within_500m', 'count_information_within_500m', 'count_museum_within_500m',
-    'count_zoo_within_500m', 'count_picnic_site_within_500m', 'count_hotel_within_500m',
-    'count_motel_within_500m', 'count_chalet_within_500m', 'count_artwork_within_500m',
-    'count_wilderness_hut_within_500m', 'count_waterfall_within_500m', 'distance_nearest_restaurant',
-    'distance_nearest_fast_food', 'distance_nearest_village', 'distance_nearest_hospital',
-    'distance_nearest_pharmacy', 'distance_nearest_clinic', 'distance_nearest_hotel',
-    'distance_nearest_apartment', 'distance_nearest_atm', 'distance_nearest_traffic_signals',
-    'distance_nearest_station', 'distance_nearest_school', 'distance_nearest_motorway_junction',
-    'distance_nearest_crossing', 'distance_nearest_viewpoint', 'distance_nearest_attraction',
-    'distance_nearest_camp_site', 'distance_nearest_guest_house', 'distance_nearest_information',
-    'distance_nearest_museum', 'distance_nearest_zoo', 'distance_nearest_picnic_site',
-    'distance_nearest_motel', 'distance_nearest_chalet', 'distance_nearest_artwork',
-    'distance_nearest_wilderness_hut', 'distance_nearest_waterfall', 'count_restaurant_within_500m',
-    'count_fast_food_within_500m', 'count_village_within_500m', 'count_hospital_within_500m',
-    'count_pharmacy_within_500m', 'count_clinic_within_500m', 'count_apartment_within_500m',
-    'count_atm_within_500m', 'count_traffic_signals_within_500m', 'count_station_within_500m',
-    'count_school_within_500m', 'count_motorway_junction_within_500m', 'count_crossing_within_500m',
-    'population'
+    'distance_nearest_police', 'distance_nearest_bus_stop', 'distance_nearest_hospital', 
+    'distance_nearest_atm', 'distance_nearest_station', 'population',
+    'distance_nearest_category: Food', 'distance_nearest_category: Drink_and_Bar', 
+    'distance_nearest_category: Education', 'distance_nearest_category: Health', 
+    'distance_nearest_category: Residential', 'distance_nearest_category: Service',
+    'distance_nearest_category: Hotel', 'distance_nearest_category: Convenience', 
+    'distance_nearest_category: Buying_Place', 'distance_nearest_category: Other',
+    'count_500m_Food', 'count_1000m_Food', 'count_500m_Drink_and_Bar',
+    'count_1000m_Drink_and_Bar', 'count_500m_Education', 'count_1000m_Education', 
+    'count_500m_Health', 'count_1000m_Health', 'count_500m_Residential', 
+    'count_1000m_Residential', 'count_500m_Service', 'count_1000m_Service',
+    'count_500m_Hotel', 'count_1000m_Hotel', 'count_500m_Convenience',
+    'count_1000m_Convenience', 'count_500m_Buying_Place', 'count_1000m_Buying_Place', 
+    'count_500m_Other', 'count_1000m_Other', 'District_TH', 'Subdistrict_TH'
 ]
 
 def predict_amenity_category(user_location):
+    # Prepare the test data in the correct structure
     test_data = {
         'lat': [user_location.lat],
         'lon': [user_location.lon],
         'province': [user_location.province],
         'distance_nearest_bank': [user_location.distance_nearest_bank],
         'distance_nearest_fuel': [user_location.distance_nearest_fuel],
-        'distance_nearest_office': [user_location.distance_nearest_office],
         'distance_nearest_police': [user_location.distance_nearest_police],
-        'distance_nearest_townhall': [user_location.distance_nearest_townhall],
-        'distance_nearest_bus_station': [user_location.distance_nearest_bus_station],
         'distance_nearest_bus_stop': [user_location.distance_nearest_bus_stop],
-        'distance_nearest_convenience': [user_location.distance_nearest_convenience],
-        'distance_nearest_mall': [user_location.distance_nearest_mall],
-        'distance_nearest_supermarket': [user_location.distance_nearest_supermarket],
-        'distance_nearest_books': [user_location.distance_nearest_books],
-        'distance_nearest_coffee': [user_location.distance_nearest_coffee],
-        'distance_nearest_department_store': [user_location.distance_nearest_department_store],
-        'distance_nearest_clothes': [user_location.distance_nearest_clothes],
-        'distance_nearest_bakery': [user_location.distance_nearest_bakery],
-        'distance_nearest_cafe': [user_location.distance_nearest_cafe],
-        'distance_nearest_restaurant': [user_location.distance_nearest_restaurant],
-        'distance_nearest_fast_food': [user_location.distance_nearest_fast_food],
-        'distance_nearest_village': [user_location.distance_nearest_village],
         'distance_nearest_hospital': [user_location.distance_nearest_hospital],
-        'distance_nearest_pharmacy': [user_location.distance_nearest_pharmacy],
-        'distance_nearest_clinic': [user_location.distance_nearest_clinic],
-        'distance_nearest_hotel': [user_location.distance_nearest_hotel],
-        'distance_nearest_apartment': [user_location.distance_nearest_apartment],
         'distance_nearest_atm': [user_location.distance_nearest_atm],
-        'distance_nearest_traffic_signals': [user_location.distance_nearest_traffic_signals],
         'distance_nearest_station': [user_location.distance_nearest_station],
-        'distance_nearest_school': [user_location.distance_nearest_school],
-        'distance_nearest_motorway_junction': [user_location.distance_nearest_motorway_junction],
-        'distance_nearest_crossing': [user_location.distance_nearest_crossing],
-        'distance_nearest_viewpoint': [user_location.distance_nearest_viewpoint],
-        'distance_nearest_attraction': [user_location.distance_nearest_attraction],
-        'distance_nearest_camp_site': [user_location.distance_nearest_camp_site],
-        'distance_nearest_guest_house': [user_location.distance_nearest_guest_house],
-        'distance_nearest_information': [user_location.distance_nearest_information],
-        'distance_nearest_museum': [user_location.distance_nearest_museum],
-        'distance_nearest_zoo': [user_location.distance_nearest_zoo],
-        'distance_nearest_picnic_site': [user_location.distance_nearest_picnic_site],
-        'distance_nearest_motel': [user_location.distance_nearest_motel],
-        'distance_nearest_chalet': [user_location.distance_nearest_chalet],
-        'distance_nearest_artwork': [user_location.distance_nearest_artwork],
-        'distance_nearest_wilderness_hut': [user_location.distance_nearest_wilderness_hut],
-        'distance_nearest_waterfall': [user_location.distance_nearest_waterfall],
-        'count_bank_within_500m': [user_location.count_bank_within_500m],
-        'count_fuel_within_500m': [user_location.count_fuel_within_500m],
-        'count_office_within_500m': [user_location.count_office_within_500m],
-        'count_police_within_500m': [user_location.count_police_within_500m],
-        'count_townhall_within_500m': [user_location.count_townhall_within_500m],
-        'count_bus_station_within_500m': [user_location.count_bus_station_within_500m],
-        'count_bus_stop_within_500m': [user_location.count_bus_stop_within_500m],
-        'count_convenience_within_500m': [user_location.count_convenience_within_500m],
-        'count_mall_within_500m': [user_location.count_mall_within_500m],
-        'count_supermarket_within_500m': [user_location.count_supermarket_within_500m],
-        'count_books_within_500m': [user_location.count_books_within_500m],
-        'count_coffee_within_500m': [user_location.count_coffee_within_500m],
-        'count_department_store_within_500m': [user_location.count_department_store_within_500m],
-        'count_clothes_within_500m': [user_location.count_clothes_within_500m],
-        'count_bakery_within_500m': [user_location.count_bakery_within_500m],
-        'count_cafe_within_500m': [user_location.count_cafe_within_500m],
-        'count_restaurant_within_500m': [user_location.count_restaurant_within_500m],
-        'count_fast_food_within_500m': [user_location.count_fast_food_within_500m],
-        'count_village_within_500m': [user_location.count_village_within_500m],
-        'count_hospital_within_500m': [user_location.count_hospital_within_500m],
-        'count_pharmacy_within_500m': [user_location.count_pharmacy_within_500m],
-        'count_clinic_within_500m': [user_location.count_clinic_within_500m],
-        'count_hotel_within_500m': [user_location.count_hotel_within_500m],
-        'count_apartment_within_500m': [user_location.count_apartment_within_500m],
-        'count_atm_within_500m': [user_location.count_atm_within_500m],
-        'count_traffic_signals_within_500m': [user_location.count_traffic_signals_within_500m],
-        'count_station_within_500m': [user_location.count_station_within_500m],
-        'count_school_within_500m': [user_location.count_school_within_500m],
-        'count_motorway_junction_within_500m': [user_location.count_motorway_junction_within_500m],
-        'count_crossing_within_500m': [user_location.count_crossing_within_500m],
-        'population': [user_location.population]
+        'population': [user_location.population],
+        'distance_nearest_category: Food': [user_location.distance_nearest_food],
+        'distance_nearest_category: Drink_and_Bar': [user_location.distance_nearest_drink_and_bar],
+        'distance_nearest_category: Education': [user_location.distance_nearest_education],
+        'distance_nearest_category: Health': [user_location.distance_nearest_health],
+        'distance_nearest_category: Residential': [user_location.distance_nearest_residential],
+        'distance_nearest_category: Service': [user_location.distance_nearest_service],
+        'distance_nearest_category: Hotel': [user_location.distance_nearest_hotel],
+        'distance_nearest_category: Convenience': [user_location.distance_nearest_convenience],
+        'distance_nearest_category: Buying_Place': [user_location.distance_nearest_buying_place],
+        'distance_nearest_category: Other': [user_location.distance_nearest_other],
+        'count_500m_Food': [user_location.count_500m_food],
+        'count_1000m_Food': [user_location.count_1000m_food],
+        'count_500m_Drink_and_Bar': [user_location.count_500m_drink_and_bar],
+        'count_1000m_Drink_and_Bar': [user_location.count_1000m_drink_and_bar],
+        'count_500m_Education': [user_location.count_500m_education],
+        'count_1000m_Education': [user_location.count_1000m_education],
+        'count_500m_Health': [user_location.count_500m_health],
+        'count_1000m_Health': [user_location.count_1000m_health],
+        'count_500m_Residential': [user_location.count_500m_residential],
+        'count_1000m_Residential': [user_location.count_1000m_residential],
+        'count_500m_Service': [user_location.count_500m_service],
+        'count_1000m_Service': [user_location.count_1000m_service],
+        'count_500m_Hotel': [user_location.count_500m_hotel],
+        'count_1000m_Hotel': [user_location.count_1000m_hotel],
+        'count_500m_Convenience': [user_location.count_500m_convenience],
+        'count_1000m_Convenience': [user_location.count_1000m_convenience],
+        'count_500m_Buying_Place': [user_location.count_500m_buying_place],
+        'count_1000m_Buying_Place': [user_location.count_1000m_buying_place],
+        'count_500m_Other': [user_location.count_500m_other],
+        'count_1000m_Other': [user_location.count_1000m_other],
+        'District_TH': [user_location.district_th],
+        'Subdistrict_TH': [user_location.subdistrict_th]
     }
-
-    # Add missing features with default values
+    
+    # Handle any missing features by assigning default values
     missing_features = list(set(feature_order) - set(test_data.keys()))
     for feature in missing_features:
         if feature.startswith('count_'):
-            test_data[feature] = [0]
+            test_data[feature] = [0]  # Default for missing count is 0
         elif feature.startswith('distance_'):
-            test_data[feature] = [float('inf')]
+            test_data[feature] = [float('inf')]  # Default for missing distances is infinity
 
+    # Create DataFrame for model prediction
     test_df = pd.DataFrame(test_data)
 
-    # Ensure the 'province' column has all possible labels before transforming
-    all_possible_labels = np.append(label_encoder.classes_, user_location.province)
+    # Ensure the 'province', 'District_TH', and 'Subdistrict_TH' columns have all possible labels before transforming
+    all_possible_labels = np.append(label_encoder.classes_, [user_location.province, user_location.district_th, user_location.subdistrict_th])
     label_encoder.classes_ = np.unique(all_possible_labels)
 
-    # Convert 'province' using the same label encoder used during training
-    test_df['province'] = label_encoder.transform(test_df['province'])
+    # Encode the 'province', 'District_TH', and 'Subdistrict_TH' using the label encoder
+    for col in ['province', 'District_TH', 'Subdistrict_TH']:
+        test_df[col] = label_encoder.transform(test_df[col])
 
-    # Handle missing values and replace infinite values
+    # Replace infinite values with 0, as the model might not handle infinity properly
     test_df.replace([np.inf, -np.inf], 0, inplace=True)
 
-    # Reorder test_df to match the feature order
+    # Ensure the columns are in the correct order
     test_df = test_df[feature_order]
 
-    # Predict the amenity category using the trained model
+    # Use the random forest classifier to predict the probabilities
     predicted_probabilities = rf_classifier.predict_proba(test_df)[0]
 
-    # Convert the numeric predictions back to the original labels
+    # Get top predictions by probability
     top_indices = np.argsort(predicted_probabilities)[::-1]
     top_labels = label_encoder.inverse_transform(top_indices)
     top_scores = predicted_probabilities[top_indices]
 
+    # Return a list of ranked predictions
     ranked_predictions = [{"category": label, "score": score} for label, score in zip(top_labels, top_scores)]
-
-    top_ranked_prediction = ranked_predictions[0]  # Get the top-ranked prediction
+    
+    # Return the top-ranked prediction
+    top_ranked_prediction = ranked_predictions[0]
 
     return ranked_predictions, top_ranked_prediction
+
 
 os.environ['SHAPE_RESTORE_SHX'] = 'YES'
 
@@ -278,57 +242,72 @@ def find_location(lat, lon):
     
     
 def calculate_distance_category(lat, lon, category):
-    # Query data from LocationCategory model for the specific category
-    locations = LocationCategory.objects.filter(category=category).values('lat', 'lon')
+    # Query data from Location model for the specific category
+    locations = Location.objects.filter(category=category).values('lat', 'lon')
     df = pd.DataFrame(locations)
 
     if df.empty:
         return None  # Return None if no locations are found for the category
 
     # Get the coordinates for the specific category
-    category_coords = df[['lat', 'lon']].values
-    
+    category_coords = df[['lat', 'lon']].values.astype(float)
+
     # Build the KDTree for the category coordinates
     tree = KDTree(category_coords)
 
     # Find the nearest two distances to the given lat/lon point
-    point = [[lat, lon]]
-    dist, ind = tree.query(point, k=2)  # k=2 to skip the point itself
+    point = [[float(lat), float(lon)]]
+    dist, ind = tree.query(point, k=2)
 
-    # If the closest point is the same as the input point, skip it
-    nearest_distance = dist[0][1] if dist[0][0] == 0 else dist[0][0]
+    # Check if the closest point is the same as the input point
+    closest_point = category_coords[ind[0][0]]
+    if closest_point[0] == float(lat) and closest_point[1] == float(lon):
+        # If the nearest point is itself, return the second nearest point
+        nearest_distance = dist[0][1] * 111319.9  # Convert degrees to meters
+    else:
+        # Otherwise, return the nearest point
+        nearest_distance = dist[0][0] * 111319.9  # Convert degrees to meters
 
-    return nearest_distance * 111319.9 
+    return nearest_distance
+
+def calculate_nearest_category(lat, lon, category):
+    return calculate_distance_category(lat, lon, category)  # Reuse the KDTree-based function
 
 def calculate_count_category(lat, lon, category, radius):
-    # Query data from LocationCategory model for the specific category
-    locations = LocationCategory.objects.filter(category=category).values('lat', 'lon')
+    # Query data from Location model for the specific category
+    locations = Location.objects.filter(category=category).values('lat', 'lon')
     df = pd.DataFrame(locations)
 
     if df.empty:
-        return None  # Return None if no locations are found for the category
+        return 0  # Return 0 if no locations are found for the category
 
     # Get the coordinates for the specific category
-    category_coords = df[['lat', 'lon']].values
+    category_coords = df[['lat', 'lon']].values.astype(float)
 
     # Build the KDTree for the category coordinates
     tree = KDTree(category_coords)
 
     # Convert radius from meters to degrees
-    radius_in_degrees = radius / 111319.9
+    radius_in_degrees = float(radius) / 111319.9
 
     # Define the point (lat, lon) to query around
-    point = [[lat, lon]]
+    point = [[float(lat), float(lon)]]
 
     # Query the tree to find neighbors within the radius
     indices = tree.query_radius(point, r=radius_in_degrees)
 
-    # Filter out the input point itself from the result
-    count = 0
-    for index in indices[0]:
-        neighbor_lat = category_coords[index][0]
-        neighbor_lon = category_coords[index][1]
-        if not (abs(neighbor_lat - lat) < 1e-6 and abs(neighbor_lon - lon) < 1e-6):
-            count += 1
+    # Get the neighbors found within the radius
+    neighbors = category_coords[indices[0]]
 
-    return count
+    # Remove the point itself if it's in the result by checking if it's exactly the same
+    neighbors = [n for n in neighbors if not (n[0] == lat and n[1] == lon)]
+
+    # Return the count of found neighbors excluding the point itself
+    return len(neighbors)
+
+# Wrappers for 500m and 1000m
+def calculate_count_category_500m(lat, lon, category):
+    return calculate_count_category(lat, lon, category, 500)
+
+def calculate_count_category_1000m(lat, lon, category):
+    return calculate_count_category(lat, lon, category, 1000)
