@@ -26,6 +26,7 @@ import SaveAltIcon from '@mui/icons-material/SaveAlt';
 import HistoryIcon from '@mui/icons-material/History';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { MatIconModule } from '@angular/material/icon';
+import { AmenityNamePipe } from '../../pipes/amenity-name.pipe';
 
 @Component({
   selector: 'app-dashboard',
@@ -39,6 +40,7 @@ import { MatIconModule } from '@angular/material/icon';
     MatFormFieldModule,
     ReactiveFormsModule,
     MatIconModule,
+    AmenityNamePipe,
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.css'],
@@ -121,7 +123,20 @@ export class DashboardComponent implements AfterViewInit, OnInit, OnDestroy {
   private markerColors = ['green', 'orange', 'yellow', 'black', 'violet', 'gold'];
   private countFunctionUsage = 0;
   private navigationSubscription: Subscription | undefined;
+  showTerms = false;
+  showPrivacyPolicy = false;
+  tutorialImages: string[] = [
+    'assets/Tutorial1.jpg',
+    'assets/Tutorial2.jpg',
+    'assets/Tutorial3.jpg',
+    'assets/Tutorial4.jpg',
+    'assets/Tutorial5.jpg',
+    'assets/Tutorial6.jpg',
+  ];
+  currentTutorialIndex: number = 0;
+  showTutorial: boolean = false;
   suggestions: any[] = [];
+
   @ViewChild('latInput') latInput!: ElementRef<HTMLInputElement>;
   @ViewChild('lonInput') lonInput!: ElementRef<HTMLInputElement>;
   @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
@@ -137,13 +152,14 @@ export class DashboardComponent implements AfterViewInit, OnInit, OnDestroy {
   outputs: any[] = [];
   distance = 1000; // Default distance
   private redIcon: any;
-  private greenIcon: any; // Add green icon
-  private blueIcon: any; // Add blue icon
+  private greenIcon: any; 
+  private blueIcon: any; 
   isMarkerLocked = false;
   isMenuOpen = false;
   saveIcon = SaveAltIcon;
   historyIcon = HistoryIcon;
   logoutIcon = LogoutIcon;
+  isHelpVisible = false;
 
   showHistoryModal = false;
   savedMaps: any[] = [];
@@ -175,6 +191,13 @@ export class DashboardComponent implements AfterViewInit, OnInit, OnDestroy {
         this.initOrReinitMap();
       }
     });
+
+    //If first time login
+    const isFirstLogin = localStorage.getItem('isFirstLogin');
+    if (!isFirstLogin) {
+      this.openTutorial();
+      localStorage.setItem('isFirstLogin', 'true'); 
+    }
   }
 
   ngOnDestroy() {
@@ -873,6 +896,18 @@ export class DashboardComponent implements AfterViewInit, OnInit, OnDestroy {
         error: (error) => console.error('Error predicting model:', error),
       });
   
+    }else if (this.selectedFunction === 'population') {
+      this.apiService.getPopulation(lat, lon, this.distance).subscribe({
+        next: (response) => {
+          if (this.isOutputRemoved(loadingOutput)) return;
+          loadingOutput.loading = false;
+          Object.assign(loadingOutput, {
+            population: response.population,
+            distance: this.distance,
+          });
+        },
+        error: (error) => console.error('Error fetching population:', error),
+      });
     }else if (this.selectedFunction === 'economy') {
       this.apiService.getEconomyDetails(lat, lon).subscribe({
         next: (response) => {
@@ -1416,4 +1451,46 @@ export class DashboardComponent implements AfterViewInit, OnInit, OnDestroy {
       this.closeHistoryModal();
     }
   }
+
+  openTerms() {
+    this.isMenuOpen = false;  // ปิดเมนูเมื่อคลิก
+    this.showTerms = true;
+  }
+
+  openPrivacyPolicy() {
+    this.isMenuOpen = false;  // ปิดเมนูเมื่อคลิก
+    this.showPrivacyPolicy = true;
+  }
+
+  closeTerms() {
+    this.showTerms = false;
+  }
+
+  closePrivacyPolicy() {
+    this.showPrivacyPolicy = false;
+  }
+
+  openTutorial(): void {
+    this.currentTutorialIndex = 0;
+    this.showTutorial = true;
+  }
+
+  // Method to cycle to the next tutorial image or close after the last image
+  nextTutorial(): void {
+    if (this.currentTutorialIndex < this.tutorialImages.length - 1) {
+      this.currentTutorialIndex++;
+    } else {
+      this.closeTutorial(); // Close when the last image is reached
+    }
+  }
+
+  // Method to close the tutorial
+  closeTutorial(): void {
+    this.showTutorial = false;
+  }
+
+  toggleHelp() {
+    this.isHelpVisible = !this.isHelpVisible;
+  }
+
 }

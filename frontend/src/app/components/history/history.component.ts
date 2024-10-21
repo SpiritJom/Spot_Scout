@@ -6,6 +6,8 @@ import { HttpClientModule } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { SharedService } from '../../services/shared.service';
 import { MatIconModule } from '@angular/material/icon';
+import Swal from 'sweetalert2';
+
 
 
 @Component({
@@ -20,6 +22,8 @@ export class HistoryComponent implements OnInit {
   filteredMaps: any[] = [];
   searchText: string = '';
   isMenuOpen: boolean = false;
+  showTerms = false;
+  showPrivacyPolicy = false;
 
   constructor(
     private apiService: ApiService,
@@ -71,12 +75,29 @@ export class HistoryComponent implements OnInit {
   }
 
   deleteMap(mapId: number) {
-    this.apiService.deleteUserMap(mapId).subscribe({
-      next: () => {
-        this.savedMaps = this.savedMaps.filter((map) => map.id !== mapId);
-        this.filteredMaps = this.filteredMaps.filter((map) => map.id !== mapId); // Remove from filteredMaps too
-      },
-      error: (error) => console.error('Error deleting map:', error),
+    Swal.fire({
+      title: 'Are you sure?',
+      text: 'Do you want to delete this map? This action cannot be undone.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel',
+    }).then((result) => {
+      if (result.isConfirmed) {
+        this.apiService.deleteUserMap(mapId).subscribe({
+          next: () => {
+            Swal.fire('Deleted!', 'The map has been deleted.', 'success');
+            this.savedMaps = this.savedMaps.filter((map) => map.id !== mapId);
+            this.filteredMaps = this.filteredMaps.filter((map) => map.id !== mapId);
+          },
+          error: (error) => {
+            Swal.fire('Error', 'There was an issue deleting the map.', 'error');
+            console.error('Error deleting map:', error);
+          },
+        });
+      }
     });
   }
 
@@ -105,4 +126,23 @@ export class HistoryComponent implements OnInit {
   toggleMenu() {
     this.isMenuOpen = !this.isMenuOpen;
   }
+
+  openTerms() {
+    this.isMenuOpen = false;  // ปิดเมนูเมื่อคลิก
+    this.showTerms = true;
+  }
+
+  openPrivacyPolicy() {
+    this.isMenuOpen = false;  // ปิดเมนูเมื่อคลิก
+    this.showPrivacyPolicy = true;
+  }
+
+  closeTerms() {
+    this.showTerms = false;
+  }
+
+  closePrivacyPolicy() {
+    this.showPrivacyPolicy = false;
+  }
+
 }
